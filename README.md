@@ -155,7 +155,7 @@ The focus of this week is
 1. **Step 1: Compile Gate-Level Simulation**<br>
    Compile the gate-level netlist along with the testbench using Icarus Verilog, defining macros for post-synthesis simulation and functional behavior, and including necessary directories for source and GLS model files.
    ```
-   iverilog -o [path to your VSDBabySoC directory]/VSDBabySoC/output/post_synth_sim/post_synth_sim.out -DPOST_SYNTH_SIM -DFUNCTIONAL -DUNIT_DELAY=#1 -I [path to your VSDBabySoC directory]/VSDBabySoCC/VSDBabySoC/src/include -I [path to your VSDBabySoC directory]/VSDBabySoCC/VSDBabySoC/src/module -I [path to your VSDBabySoC directory]/VSDBabySoC/src/gls_model [path to your VSDBabySoC directory]/VSDBabySoCC/VSDBabySoC/src/module/testbench.v
+   iverilog -o [path to your VSDBabySoC directory]/VSDBabySoC/output/post_synth_sim/post_synth_sim.out -DPOST_SYNTH_SIM -DFUNCTIONAL -DUNIT_DELAY=#1 -I [path to your VSDBabySoC directory]/VSDBabySoC/src/include -I [path to your VSDBabySoC directory]/VSDBabySoC/src/module -I [path to your VSDBabySoC directory]/VSDBabySoC/src/gls_model -I [path to your VSDBabySoC directory]/VSDBabySoC/output/post_synth_sim [path to your VSDBabySoC directory]/VSDBabySoC/src/module/testbench.v
    ```
 2. **Step 2: Navigate to Output Directory**<br>
    Change the current directory to the post-synthesis simulation output folder to access the compiled simulation files and results.
