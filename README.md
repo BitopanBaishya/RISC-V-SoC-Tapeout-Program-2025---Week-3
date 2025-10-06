@@ -40,11 +40,17 @@ The focus of this week is
    cd [path to your VSDBabySoC directory]/VSDBabySoC/src/module/
    yosys
    ```
+   <div align="center">
+     <img src="Images/1.png" alt="Alt Text" width="1000"/>
+   </div>
 2. **Step 2: Read Verilog Source Files**<br>
    Load the Verilog design files into Yosys for synthesis. The `-I` option specifies an additional include directory for any header or included files.
    ```
    read_verilog -I [path to your VSDBabySoC directory]/VSDBabySoC/src/include vsdbabysoc.v rvmyth.v clk_gate.v
    ```
+   <div align="center">
+     <img src="Images/2.png" alt="Alt Text" width="1000"/>
+   </div>   
 3. **Step 3: Load Standard Cell Libraries**<br>
    Import the Liberty format (`.lib`) timing and cell information files for the different modules and the target technology. These libraries provide Yosys with cell definitions, delays, and drive strengths for synthesis and mapping.
    ```
@@ -52,26 +58,59 @@ The focus of this week is
    read_liberty -lib [path to your VSDBabySoC directory]/VSDBabySoC/src/lib/avsddac.lib
    read_liberty -lib [path to your VSDBabySoC directory]/VSDBabySoC/src/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
    ```
+   <div align="center">
+     <img src="Images/3.png" alt="Alt Text" width="1000"/>
+   </div>   
 4. **Step 4: Synthesize Top Module**<br>
    Perform RTL-to-gate-level synthesis for the top-level module `vsdbabysoc`, converting Verilog code into a technology-independent gate-level representation.
    ```
    synth -top vsdbabysoc
    ```
+   <div align="center">
+     <img src="Images/4.png" alt="Alt Text" width="1000"/>
+   </div>
+   <div align="center">
+     <img src="Images/5.png" alt="Alt Text" width="1000"/>
+   </div>
+   <div align="center">
+     <img src="Images/6.png" alt="Alt Text" width="1000"/>
+   </div>
+   <div align="center">
+     <img src="Images/7.png" alt="Alt Text" width="1000"/>
+   </div>
+   <div align="center">
+     <img src="Images/8.png" alt="Alt Text" width="1000"/>
+   </div>
 5. **Step 5: Map Flip-Flops to Standard Cells**<br>
    Map all the D flip-flops in the design to the corresponding flip-flop cells from the provided standard cell library (`sky130_fd_sc_hd__tt_025C_1v80.lib`).
    ```
    dfflibmap -liberty [path to your VSDBabySoC directory]/VSDBabySoC/src/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
    ```
+   <div align="center">
+     <img src="Images/9.png" alt="Alt Text" width="1000"/>
+   </div>
 6. **Step 6: Optimize the Design**<br>
    Perform general logic optimizations to simplify the circuit and reduce area, delay, and redundant logic.
    ```
    opt
    ```
+   <div align="center">
+     <img src="Images/10.png" alt="Alt Text" width="1000"/>
+   </div>
+   <div align="center">
+     <img src="Images/11.png" alt="Alt Text" width="1000"/>
+   </div>
 7. **Step 7: Technology Mapping with ABC**<br>
    Run the ABC tool to map the synthesized design to the target standard-cell library, applying logic optimization, retiming, and decomposition steps to generate an efficient gate-level netlist.
    ```
    abc -liberty [path to your VSDBabySoC directory]/VSDBabySoC/src/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script +strash;scorr;ifraig;retime;{D};strash;dch,-f;map,-M,1,{D}
    ```
+   <div align="center">
+     <img src="Images/12.png" alt="Alt Text" width="1000"/>
+   </div>
+   <div align="center">
+     <img src="Images/13.png" alt="Alt Text" width="1000"/>
+   </div>
 8. **Step 8: Flatten the Design and Clean Up**<br>
    * `flatten`: Collapse all module hierarchies into a single top-level design.
    * `setundef -zero`: Set all undefined signals to logic 0.
@@ -83,16 +122,29 @@ The focus of this week is
    clean -purge
    rename -enumerate
    ```
+   <div align="center">
+     <img src="Images/14.png" alt="Alt Text" width="1000"/>
+   </div>
 9. **Step 9: Design Statistics**<br>
    Run the `stat` command to display a summary of the current design, including the number of cells, wires, and hierarchical modules, helping you assess the complexity and size of the synthesized netlist.
    ```
    stat
    ```
+   <div align="center">
+     <img src="Images/15.png" alt="Alt Text" width="1000"/>
+   </div>
+   <div align="center">
+     <img src="Images/16.png" alt="Alt Text" width="1000"/>
+   </div>
 10. **Step 10: Write Synthesized Netlist**<br>
    Use the `write_verilog` command to export the optimized gate-level netlist to a Verilog file, which can be used for post-synthesis simulations or further design analysis.
    ```
    write_verilog -noattr [path to your VSDBabySoC directory]/VSDBabySoC//output/post_synth_sim/vsdbabysoc.synth.v
    ```
+   <div align="center">
+     <img src="Images/17.png" alt="Alt Text" width="1000"/>
+   </div>
+   
 11. **Step 11: Exit Yosys**<br>
    Terminate the Yosys synthesis session and return to the regular terminal shell.
    ```
@@ -120,6 +172,9 @@ The focus of this week is
    ```
    gtkwave post_synth_sim.vcd
    ```
+   <div align="center">
+     <img src="Images/18.png" alt="Alt Text" width="1000"/>
+   </div>
 
 ### <ins>3. Output in GTKWave.</ins>
 <div align="center">
@@ -127,3 +182,5 @@ The focus of this week is
 </div>
 
 ### <ins>4. The Synthesis Logs.</ins>
+The screenshots of the synthesis logs, captured from the terminal, are provided under each corresponding command. These screenshots display the username and timestamps for reference. Note that timestamps could not be captured while running Yosys, as it does not natively support this feature; however, timestamps are visible outside the Yosys environment.<br>
+For certain commands, the logs could not be displayed in full within the screenshots due to their extensive length. In these cases, only the beginning and end portions of the command outputs are shown. For those interested in reviewing the complete synthesis logs, the entire terminal output has been exported as a log file, which can be accessed [here.](VSDBabySoC_GLS_Bitopan.log)
