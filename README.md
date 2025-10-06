@@ -6,6 +6,7 @@ The focus of this week is
 
 ## 📜 Table of Contents
 [📋 Prerequisites](#-prerequisites) <br>
+[1. Gate-Level Simulation (GLS) of VSDBabySoC](#1-gate-level-simulation-gls-of-vsdbabysoc)<br>
 
 ---
 
@@ -32,3 +33,97 @@ The focus of this week is
 > To revise RTL Synthesis in detail, visit [here.](https://github.com/BitopanBaishya/RISC-V-SoC-Tapeout-Program-2025---Week-1/blob/39ab28880dd3ad3f48bbed38bf4fd0e14b621c49/Day%201/README.md#3-introduction-to-synthesis-netlist-yosys-and-frontend-libraries)
 > To revise GLS in detail, visit [here.](https://github.com/BitopanBaishya/RISC-V-SoC-Tapeout-Program-2025---Week-1/blob/375e2128e691f2ef6fc6c438972b87ab7c131df6/Day%204/README.md)
 
+### <ins>1. Synthesis of the Netlist.</ins>
+1. **Step 1: Navigate to Module Directory & Launch Yosys**<br>
+   Change the current directory to where the Verilog source files are located and start the Yosys synthesis tool.
+   ```
+   cd [path to your VSDBabySoC directory]/VSDBabySoC/src/module/
+   yosys
+   ```
+2. **Step 2: Read Verilog Source Files**<br>
+   Load the Verilog design files into Yosys for synthesis. The `-I` option specifies an additional include directory for any header or included files.
+   ```
+   read_verilog -I [path to your VSDBabySoC directory]/VSDBabySoC/src/include vsdbabysoc.v rvmyth.v clk_gate.v
+   ```
+3. **Step 3: Load Standard Cell Libraries**<br>
+   Import the Liberty format (`.lib`) timing and cell information files for the different modules and the target technology. These libraries provide Yosys with cell definitions, delays, and drive strengths for synthesis and mapping.
+   ```
+   read_liberty -lib [path to your VSDBabySoC directory]/VSDBabySoC/src/lib/avsdpll.lib
+   read_liberty -lib [path to your VSDBabySoC directory]/VSDBabySoC/src/lib/avsddac.lib
+   read_liberty -lib [path to your VSDBabySoC directory]/VSDBabySoC/src/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+   ```
+4. **Step 4: Synthesize Top Module**<br>
+   Perform RTL-to-gate-level synthesis for the top-level module `vsdbabysoc`, converting Verilog code into a technology-independent gate-level representation.
+   ```
+   synth -top vsdbabysoc
+   ```
+5. **Step 5: Map Flip-Flops to Standard Cells**<br>
+   Map all the D flip-flops in the design to the corresponding flip-flop cells from the provided standard cell library (`sky130_fd_sc_hd__tt_025C_1v80.lib`).
+   ```
+   dfflibmap -liberty [path to your VSDBabySoC directory]/VSDBabySoC/src/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+   ```
+6. **Step 6: Optimize the Design**<br>
+   Perform general logic optimizations to simplify the circuit and reduce area, delay, and redundant logic.
+   ```
+   opt
+   ```
+7. **Step 7: Technology Mapping with ABC**<br>
+   Run the ABC tool to map the synthesized design to the target standard-cell library, applying logic optimization, retiming, and decomposition steps to generate an efficient gate-level netlist.
+   ```
+   abc -liberty [path to your VSDBabySoC directory]/VSDBabySoC/src/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script +strash;scorr;ifraig;retime;{D};strash;dch,-f;map,-M,1,{D}
+   ```
+8. **Step 8: Flatten the Design and Clean Up**<br>
+   * `flatten`: Collapse all module hierarchies into a single top-level design.
+   * `setundef -zero`: Set all undefined signals to logic 0.
+   * `clean -purge`: Remove unused cells and nets.
+   * `rename -enumerate`: Rename all remaining signals and cells systematically for clarity.
+   ```
+   flatten
+   setundef -zero
+   clean -purge
+   rename -enumerate
+   ```
+9. **Step 9: Design Statistics**<br>
+   Run the `stat` command to display a summary of the current design, including the number of cells, wires, and hierarchical modules, helping you assess the complexity and size of the synthesized netlist.
+   ```
+   stat
+   ```
+10. **Step 10: Write Synthesized Netlist**<br>
+   Use the `write_verilog` command to export the optimized gate-level netlist to a Verilog file, which can be used for post-synthesis simulations or further design analysis.
+   ```
+   write_verilog -noattr [path to your VSDBabySoC directory]/VSDBabySoC//output/post_synth_sim/vsdbabysoc.synth.v
+   ```
+11. **Step 11: Exit Yosys**<br>
+   Terminate the Yosys synthesis session and return to the regular terminal shell.
+   ```
+   exit
+   ``` 
+
+### <ins>2. Gate-Level Simulation.</ins>
+1. **Step 1: Compile Gate-Level Simulation**<br>
+   Compile the gate-level netlist along with the testbench using Icarus Verilog, defining macros for post-synthesis simulation and functional behavior, and including necessary directories for source and GLS model files.
+   ```
+   iverilog -o [path to your VSDBabySoC directory]/VSDBabySoC/output/post_synth_sim/post_synth_sim.out -DPOST_SYNTH_SIM -DFUNCTIONAL -DUNIT_DELAY=#1 -I [path to your VSDBabySoC directory]/VSDBabySoCC/VSDBabySoC/src/include -I [path to your VSDBabySoC directory]/VSDBabySoCC/VSDBabySoC/src/module -I [path to your VSDBabySoC directory]/VSDBabySoC/src/gls_model [path to your VSDBabySoC directory]/VSDBabySoCC/VSDBabySoC/src/module/testbench.v
+   ```
+2. **Step 2: Navigate to Output Directory**<br>
+   Change the current directory to the post-synthesis simulation output folder to access the compiled simulation files and results.
+   ```
+   cd [path to your VSDBabySoC directory]/VSDBabySoC/output/post_synth_sim/
+   ```
+3. **Step 3: Run Post-Synthesis Simulation**<br>
+   Execute the compiled simulation binary to verify that the gate-level netlist produces the expected functional outputs.
+   ```
+   ./post_synth_sim.out
+   ```
+4. **Step 4: View Simulation Waveforms in GTKWave**<br>
+   Open the generated VCD (Value Change Dump) file in GTKWave to visually inspect the signal transitions and verify the correctness of the post-synthesis simulation.
+   ```
+   gtkwave post_synth_sim.vcd
+   ```
+
+### <ins>3. Output in GTKWave.</ins>
+<div align="center">
+  <img src="Images/VSDBabySoC_GLS_GTKWave.png" alt="Alt Text" width="1000"/>
+</div>
+
+### <ins>4. The Synthesis Logs.</ins>
