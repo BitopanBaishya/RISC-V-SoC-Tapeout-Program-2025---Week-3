@@ -7,6 +7,7 @@ The focus of this week is
 ## 📜 Table of Contents
 [📋 Prerequisites](#-prerequisites) <br>
 [1. Gate-Level Simulation (GLS) of VSDBabySoC](#1-gate-level-simulation-gls-of-vsdbabysoc)<br>
+[2. Fundamentals of Static Timing Analysis (STA)](#2-fundamentals-of-static-timing-analysis-sta)<br>
 
 ---
 
@@ -193,3 +194,170 @@ After completing both the RTL simulations and gate-level simulations (GLS) of th
    No unexpected glitches or incorrect transitions were observed in the GLS outputs. All signals behaved as expected under the defined testbench stimuli, indicating that the design is stable and timing-correct at the synthesized level.
 3. **Conclusion:**
    The successful verification of GLS against RTL simulations validates that the synthesized netlist is functionally equivalent to the RTL design. This confirms the correctness of the synthesis flow, cell mapping, and the overall implementation of the VSDBabySoC.
+
+---
+
+## 2. Fundamentals of Static Timing Analysis (STA).
+### <ins>1. What is Static Timing Analysis?</ins>
+Static Timing Analysis (STA) is a method used in digital design to verify that a circuit meets its timing requirements without simulating actual waveforms. It calculates the expected signal arrival and checks if it meets setup, hold, and other timing constraints.<br>
+*Think of STA as “predictive timing verification”—you aren’t simulating waveforms but calculating if the timing rules are satisfied.*
+
+### <ins>2. Core Components of STA</ins>
+STA broadly comprises three main components:
+- **Timing Checks**:<br>
+  These are the first level of diagnosis for a chip, ensuring signals meet timing rules. Examples include:
+  * **Setup checks**: Verify signals arrive before the clock edge.
+  * **Hold checks**: Ensure signals are stable after the clock edge.
+  * **Recovery/Removal checks**: For asynchronous signals like resets.
+
+- **Constraints**:<br>
+  Constraints are specifications provided to the STA tool, defining timing requirements for clocks, inputs, outputs, and internal paths.
+
+- **Libraries**:<br>
+  Libraries provide the models used in STA. These models define the behavior of standard cells (gates, flip-flops, etc.) under different conditions. Models can be Non-Linear Delay Models (NLDM) or constant current source models
+  
+### <ins>3. Timing Path</ins>
+A timing path is the route that a signal takes from its starting point to its endpoint in a digital circuit.
+- **Start point:** Clock pin of a flip-flop or an input port
+- **End point:** D pin of a flip-flop or an output port
+
+It is crucial to identify valid timing paths so that STA checks are meaningful.
+
+### <ins>4. Key Timing Parameters</ins>
+- **Arrival Time**:<br>
+  * The time taken for a signal to travel from the start point to the endpoint.
+  * Calculated only at the endpoints of the timing path.
+- **Launch Flop and Capture Flop**:<br>
+  * **Launch flop**: The flip-flop from which a signal is launched.
+  * **Capture flop**: The flip-flop that captures the signal.
+- **Required Time**:<br>
+  * Defines when a signal is expected to arrive at the endpoint.
+  * Example: A signal should arrive after 0.5 ns but before 3 ns.
+    * 0.5 ns → minimum expected time
+    * 3 ns → maximum expected time
+- **Slack**:<br>
+Slack is the difference between the arrival time and the required time. It indicates timing margin.
+  * Minimum Slack: `arrival time – min required time` → Hold Slack
+  * Maximum Slack: `max required time – arrival time` → Setup Slack
+
+### <ins>5. Types of Timing Analysis</ins>
+- **Setup/Hold Analysis**
+  * **Reg2Reg**: From a register to another register
+  * **In2Reg**: From an input port to a flop’s D pin
+  * **Reg2Out**: From a flop’s Q pin to an output port
+  * **In2Out**: From an input port to an output port
+
+    The last three categories are collectively called I/O timing.
+- **Other Timing Checks**
+  * **Clock-Gating Analysis**: From clock to gate output
+  * **Recovery/Removal Analysis**: From clock to reset of another flip-flop
+  * **Data-to-Data Check**: Ensures two signals remain in synchronism
+  * **Latch Analysis**: Time borrowing between latches and flops
+
+- **Slew / Transition Analysis**
+  * Ensures the rise/fall times of signals are within minimum and maximum limits.
+  * Subdivisions:
+    * Data slew analysis
+    * Clock slew analysis
+  * Important for power and signal integrity considerations.
+
+- **Load Analysis**
+  * **Fanout analysis**: Ensures maximum/minimum fanout limits are not violated.
+  * **Capacitance analysis**: Checks that node capacitances are within acceptable limits.
+ 
+- **Clock Analysis**
+  * Skew Analysis:
+    * Skew = difference in latency from the clock input to each flip-flop clock port
+    * Skew must be managed as it affects setup and hold margins.
+  * Pulse Width Analysis: Checks the degradation of pulse width through the circuit.
+
+### <ins>6. Setup Analysis with a Single Clock</ins>
+- **Delays in the Circuit**:<br>
+  In STA, all components and wires have delays, measured in nanoseconds (ns) or picoseconds (ps), depending on the technology:
+  * **Cell delays**:<br>
+    Denoted like `a(2)`, meaning element `a` has 2 units of delay.
+  * **Wire delays**:<br>
+    Example: `0.1`, `0.2`, `0.15` units, depending on the wire length and resistance.
+  * **Signal transition delays**:<br>
+    When a signal arrives at an input pin, its rise/fall transition times also contribute to the total delay.
+
+  All these delays add up along the timing path and affect the final arrival time of signals.
+- **Timing Graph / DAG**:<br>
+  To analyze timing efficiently, we represent the circuit as a Directed Acyclic Graph (DAG), also called a timing graph:
+  * **Nodes:** represent points in the circuit (pins or cells, depending on convention)
+  * **Edges:** represent signal propagation delays
+
+  This graph allows the STA tool to systematically calculate timing parameters across the entire design.
+- **Actual Arrival Time (AAT)**:<br>
+  * **Definition**: Time at any node when the latest transition occurs after the first clock edge.
+  * **Calculation:**
+    * Sum of all previous delays from the source to that particular node.
+    * For multi-input nodes:
+      * Setup analysis: take the largest AAT (worst-case delay)
+      * Hold analysis: take the smallest AAT (earliest arrival)
+
+  Intuition: For setup checks, we care about signals that arrive late, while for hold checks, we care about signals that arrive too early.
+- **Required Arrival Time (RAT)**:<br>
+  * **Definition**: Time at any node when a signal is expected to arrive to meet timing requirements.
+  * **Calculation:**
+    1. Start at the output pin where the required timing is defined.
+    2. Work backwards, subtracting delays along each edge to calculate RAT for each upstream node.
+    3. For multi-output nodes: take the smallest RAT, as it represents the most restrictive timing requirement.
+
+   *Think of AAT as “what actually happens” and RAT as “what should happen”.*
+
+- **Slack Computation**:<br>
+  Slack indicates whether a design meets timing requirements:
+  * **Calculation**: `Slack=RAT−AAT`
+  * **Positive slack**: timing requirement satisfied
+  * **Negative slack**: timing violation
+    * When slack is negative at outputs, we can trace back through the graph to identify the nodes causing the largest negative slack.
+    * Tuning the delays of these nodes improves overall timing.
+
+  *Slack is your signal health indicator—negative slack highlights trouble spots.*
+
+- **Graph-Based vs Path-Based Analysis**:<br>
+  STA can be performed in two approaches:
+  1. Graph-Based Analysis (Node-based):
+     * DAG is represented using pin-node convention: each pin of a cell is a node, and the cell itself disappears.
+     * AAT, RAT, and slack are computed at every node, giving a detailed view of timing across the circuit.
+  2. Path-Based Analysis:
+     * Focuses only on specific timing paths, from launch to capture points.
+     * Easier for high-level timing checks but less detailed than node-based graph analysis.
+
+     Graph-based analysis is considered more accurate and detailed, especially for complex designs.
+
+### <ins>7. Flip-Flop Timing, Clock Skew, and Jitter</ins>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
