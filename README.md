@@ -1,6 +1,6 @@
 # Week 3: Post Synthesis GLS and STA Fundamentals
  
-The focus of this week is 
+The focus of this week is to verify the functionality and timing of the VSDBabySoC design after synthesis. We begin by performing Gate-Level Simulation (GLS) to ensure that the synthesized netlist behaves identically to the RTL design. Next, we explore the fundamentals of Static Timing Analysis (STA), including setup and hold checks, timing paths, slack calculation, and clock-related considerations such as skew and jitter. The week also introduces the installation and use of OpenSTA to automate timing analysis and generate critical path reports. Finally, we generate timing diagrams to visualize signal propagation and slack across key paths. This week emphasizes the transition from functional correctness to timing-aware post-synthesis verification, highlighting the importance of validating both logic and timing in SoC design.
 
 ---
 
@@ -8,6 +8,9 @@ The focus of this week is
 [📋 Prerequisites](#-prerequisites) <br>
 [1. Gate-Level Simulation (GLS) of VSDBabySoC](#1-gate-level-simulation-gls-of-vsdbabysoc)<br>
 [2. Fundamentals of Static Timing Analysis (STA)](#2-fundamentals-of-static-timing-analysis-sta)<br>
+[3. Installation of OpenSTA and a Brief Introduction](#3-installation-of-opensta-and-a-brief-introduction)<br>
+[4. Static Timing Analysis of VSDBabySoC](#4-static-timing-analysis-of-vsdbabysoc)<br>
+[🏁 Final Remarks](#-final-remarks)
 
 ---
 
@@ -425,8 +428,279 @@ Hold uncertainty is much lower than setup uncertainty. Here's why:
   * You use the same commands or tool flow in OpenSTA (or any STA tool).
   * Only the direction of timing propagation and the definition of slack differ.
 
+---
+
+## 3. Installation of OpenSTA and a Brief Introduction.
+
+### <ins>1. Installation of OpenSTA</ins>
+The following Github Repo was referred for the detailed documentation during the installation of OpenSTA: [spatha_vsd-hdp](https://github.com/spatha0011/spatha_vsd-hdp/blob/0ee1c5464d5af4c125520b4ede73b4848309869e/Day7/README.md#installation-of-opensta).
+- **Step 1**:<br>
+  Clone the github Repository.
+  ```
+  git clone https://github.com/parallaxsw/OpenSTA.git
+  cd OpenSTA
+  ```
+
+- **Step 2**:<br>
+  Build the Docker Image.
+  ```
+  docker build --file Dockerfile.ubuntu22.04 --tag opensta
+  ```
+
+- **Step 3**:<br>
+  Run the OpenSTA container.
+  ```
+  docker run -i -v $HOME:/data opensta
+  ```
+
+- **Step 4**:<br>
+  Run the OpenSTA container.
+  ```
+  docker run -i -v $HOME:/data opensta
+  ```
+
+  This will take you inside the container, with a `%` symbol, and OpenSTA will be ready to use.
+
+### <ins>2. Static Timing Analysis of an example file.</ins>
+Here we will first perform Static Timing Analysis of an example file `example1.v` to learn how to perform STA inside OpenSTA. After this, we will proceed to perform STA of VSDBabySoC.<br>
+
+- First initiate OpenSTA. After entering the OpenSTA shell (indicated by the `%` prompt), you can run a simple static timing analysis using the following inline commands:
+  ```
+  # Instructs OpenSTA to read and load the Liberty file "nangate45_slow.lib.gz".
+  read_liberty /OpenSTA/examples/nangate45_slow.lib.gz
+
+  # Intructs OpenSTA to read and load the Verilog file (gate level verilog netlist) "example1.v"
+  read_verilog /OpenSTA/examples/example1.v
+
+  # Using "top," which stands for the main module, links the Verilog code with the Liberty timing cells.
+  link_design top
+
+  # Create a 10ns clock named 'clk' for clk1, clk2, and clk3 inputs 
+  create_clock -name clk -period 10 {clk1 clk2 clk3}
+
+  # Set 0ns input delay for inputs in1 and in2 relative to clock 'clk'
+  set_input_delay -clock clk 0 {in1 in2}
+
+  # Report of the timing checks for the design 
+  report_checks 
+  ```
+
+  Output:
+  <div align="center">
+     <img src="Images/example1_TimingAnalysis.png" alt="Alt Text" width="1000"/>
+  </div>
+
+- The `report_checks` command is used in this case because only the slow Liberty file (`nangate45_slow.lib.gz`) has been loaded. This corresponds to a setup (maximum delay) corner, meaning the analysis is inherently focused on setup timing.
+- Why does `report_checks` display only maximum (setup) paths?<br>
+  By default, the `report_checks` command reports paths with maximum delay, equivalent to executing:
+  ```
+  report_checks -path_delay max
+  ```
+- To specifically analyze hold checks (minimum path delays), the command should be:
+  ```
+  report_checks -path_delay min
+  ```
+
+  Then the output would be:
+  <div align="center">
+     <img src="Images/example1_TimingAnalysis_Hold.png" alt="Alt Text" width="1000"/>
+  </div>  
+
+- **SPEF-Based Timing Analysis**<br>
+  The following OpenSTA timing analysis flow incorporates SPEF-based parasitic modeling, which enhances the accuracy of timing results by including post-layout parasitic effects.<br>
+  By integrating SPEF (Standard Parasitic Exchange Format) data, OpenSTA accounts for real-world resistive (R) and capacitive (C) interconnect delays extracted from the layout. This leads to a more realistic computation of path delays and timing slacks, thereby improving the precision and reliability of final timing signoff.<br>
+  Run the following commands inside OpenSTA:
+  ```
+  read_liberty /OpenSTA/examples/nangate45_slow.lib.gz
+  read_verilog /OpenSTA/examples/example1.v
+  link_design top
+  read_spef /OpenSTA/examples/example1.dspef
+  create_clock -name clk -period 10 {clk1 clk2 clk3}
+  set_input_delay -clock clk 0 {in1 in2}
+  report_checks
+  ```
+
+  Output:
+  <div align="center">
+     <img src="Images/example1_TimingAnalysis_SPEF.png" alt="Alt Text" width="1000"/>
+  </div>  
+
+- **Timing Analysis Using a TCL Script**
+  To streamline the timing analysis, you can place the commands in a `.tcl` script and run it directly from the OpenSTA shell. The `.tcl` script to perform timing analysis of `example1.v` is as follows:
+  ```
+  # min/max delay calc example
+  read_liberty -max nangate45_slow.lib.gz
+  read_liberty -min nangate45_fast.lib.gz
+  read_verilog example1.v
+  link_design top
+  create_clock -name clk -period 10 {clk1 clk2 clk3}
+  set_input_delay -clock clk 0 {in1 in2}
+  report_checks -path_delay min_max
+  ```
+
+  Then save it with the name `min_max_delays.tcl` in an arbitrary folder.<br>
+  To run the script, first move to the directory where you saved the script, and then initiate OpenSTA. And inside OpenSTA, run:
+  ```
+  source min_max_delays.tcl
+  ```
+
+  Alternatively, if you are in a different directory, you can also give the path to the `.tcl` file.
+
+---
+
+## 4. Static Timing Analysis of VSDBabySoC.
+
+### <ins>1. Preparation of the Environment</ins>
+To initiate static timing analysis on the VSDBabySoC design, it is necessary to arrange and prepare all required files within their designated directories.
+```
+# Create a directory to store Liberty timing libraries
+/VLSI/VSDBabySoC/OpenSTA$ mkdir -p examples/timing_libs/
+/VLSI/VSDBabySoC/OpenSTA/examples$ ls timing_libs/
+avsddac.lib  avsdpll.lib  sky130_fd_sc_hd__tt_025C_1v80.lib
+
+# Create a directory to store synthesized netlist and constraint files
+/VLSI/VSDBabySoC/OpenSTA$ mkdir -p examples/BabySoC
+/VLSI/VSDBabySoC/OpenSTA/examples$ ls BabySoC/
+gcd_sky130hd.sdc  vsdbabysoc_synthesis.sdc  vsdbabysoc.synth.v
+```
+
+The necessary files are as follows:
+- Standard cell library: `sky130_fd_sc_hd__tt_025C_1v80.lib`
+- IP-specific Liberty libraries: `avsdpll.lib`, `avsddac.lib`
+- Synthesized gate-level netlist: `vsdbabysoc.synth.v`
+- Timing constraints: `vsdbabysoc_synthesis.sdc`
+
+### <ins>2. Automate the Timing Analysis</ins>
+The following TCL script executes a comprehensive minimum and maximum timing analysis on the SoC:
+```
+# Load Liberty Libraries (standard cell + IPs)
+read_liberty -min /home/bitopan/VSD_Tapeout_Program/VSDBabySoC/OpenSTA/examples/timing_libs/sky130_fd_sc_hd__tt_025C_1v80.lib
+read_liberty -max /home/bitopan/VSD_Tapeout_Program/VSDBabySoC/OpenSTA/examples/timing_libs/sky130_fd_sc_hd__tt_025C_1v80.lib
+
+read_liberty -min /home/bitopan/VSD_Tapeout_Program/VSDBabySoC/OpenSTA/examples/timing_libs/avsdpll.lib
+read_liberty -max /home/bitopan/VSD_Tapeout_Program/VSDBabySoC/OpenSTA/examples/timing_libs/avsdpll.lib
+
+read_liberty -min /home/bitopan/VSD_Tapeout_Program/VSDBabySoC/OpenSTA/examples/timing_libs/avsddac.lib
+read_liberty -max /home/bitopan/VSD_Tapeout_Program/VSDBabySoC/OpenSTA/examples/timing_libs/avsddac.lib
+
+# Read Synthesized Netlist
+read_verilog /home/bitopan/VSD_Tapeout_Program/VSDBabySoC/OpenSTA/examples/BabySoC/vsdbabysoc.synth.v
+
+# Link the Top-Level Design
+link_design vsdbabysoc
+
+# Apply SDC Constraints
+read_sdc /home/bitopan/VSD_Tapeout_Program/VSDBabySoC/OpenSTA/examples/BabySoC/vsdbabysoc_synthesis.sdc
+
+# Generate Timing Report
+report_checks
+
+# Save timing checks to file
+report_checks > /home/bitopan/VSD_Tapeout_Program/VSDBabySoC/OpenSTA/examples/BabySoC/STA_OUTPUT/sta_report.txt
+```
+
+Run the `.tcl` file inside OpenSTA:
+```
+source vsdbabysoc_min_max_delays.tcl
+```
+
+>[!CAUTION]
+> 1. Kindly ensure that the file paths are updated to correspond with your system configuration.
+> 2. Upon completion, the timing analysis report was exported, as indicated by the final command in the `.tcl` file above. The report may be reviewed [here.](VSDBabySoC_sta_report.txt)
+> 3. Provide the full path of the `.tcl` file inside OpenSTA, if you're not in the same directory.
+
+### <ins>3. ⚠️ Potential Error Notification</ins>
+The following error may arise during the execution of the above `.tcl` script:
+<div align="center">
+   <img src="Images/VSDBabySoC_ErrorSTA.png" alt="Alt Text" width="1000"/>
+</div>
+
+This error arises because the Liberty syntax does not recognize `//` as a valid delimiter for single-line comments. Furthermore, the presence of the `{` character immediately following `//` causes the Liberty parser to malfunction. Please examine  `avsdpll.lib` and correct any syntax issues, including but not limited to:
+```
+//pin (GND#2) {
+//  direction : input;
+//  max_transition : 2.5;
+//  capacitance : 0.001;
+//}
+```
+
+The above snippet will be replaced by:
+```
+/*
+pin (GND#2) {
+  direction : input;
+  max_transition : 2.5;
+  capacitance : 0.001;
+}
+*/
+```
+
+This modification should enable OpenSTA to successfully parse the Liberty file without encountering syntax errors, as follows:
+<div align="center">
+   <img src="Images/VSDBabySoC_CorrectSTA.png" alt="Alt Text" width="1000"/>
+</div>
+
+### <ins>4. Timing Diagram</ins>
+This section documents the steps taken to generate timing graphs for the VSDBabySoC SoC after performing static timing analysis (STA) using OpenSTA.
+- **Environment Setup**<br>
+  The analysis was performed inside a Python virtual environment named venv_sta to ensure dependencies are isolated and reproducible.
+  ```
+  source venv_sta/bin/activate
+  ```
+
+- **Installing Graphviz**<br>
+  Graphviz was required to generate visual representations of the STA results. Installation was performed in two steps:
+  1. System-level installation (via apt):
+  ```
+  sudo apt update
+  sudo apt install -y graphviz
+  ```
+  2. Python package installation (via pip):
+  ```
+  pip install graphviz
+  ```
+
+- **Preparing the Timing Graph Script**<br>
+  A Python script named `timing_graph.py` was created to parse OpenSTA STA results and generate timing diagrams. The script was edited and saved in the STA output directory:
+  ```
+  gedit timing_graph.py
+  ```
+  * The script reads STA output (e.g., critical path information, arrival times, slacks).
+  * Generates visual timing diagrams, showing the start and end flip-flops along with path slacks.
+  * Outputs the diagram as a PNG file.
+  * The python file can be accessed [here.](VSDBabySoC_timing_graph.py)
+
+- **Executing the Timing Graph Script**<br>
+  Once the script was prepared, it was executed from the virtual environment:
+  ```
+  python3 timing_graph.py
+  ```
+
+- The terminal log will look like this:
+  <div align="center">
+   <img src="Images/VSDBabySoC_TimingDiagramGeneration.png" alt="Alt Text" width="1000"/>
+  </div>
+
+- The generated timing diagram currently possesses excessively large dimensions and, as such, has not been embedded here. However, the image may be viewed [here](Images/timing_graph_1.png) for those who are interested. In the meantime, a new diagram with more appropriate dimensions will be generated and subsequently embedded in the future.
+
+- **Brief Analysis from the Timing Diagram**<br>
+  Static timing analysis of the critical path between FF `Start_10450` and FF `End_10015` (`sky130_fd_sc_hd cells`) reports a DataArrival of `9.760 ns`, DataRequired of `10.860 ns`, and `+1.110 ns` slack, indicating the path currently meets setup timing. The dominant delay contributions are from `dxtp_1` (`~4.13 ns`) and `clkinv_1` (`~5.06 ns`). This margin is modest; full PVT corner and hold analyses, post-route extraction, and clock-uncertainty checks are recommended before sign-off. Consider gate upsizing, logic restructuring, or pipelining if margin tightens.
+
+---
+
+## 🏁 Final Remarks
+Week 3 focused on advancing from functional modeling to post-synthesis verification and timing validation of VSDBabySoC. The primary objectives were to ensure the synthesized netlist preserved RTL functionality and met timing constraints.<br>
+Key takeaways include:
+- **Gate-Level Simulation (GLS)**: Verified that the synthesized netlist produces outputs identical to RTL, confirming functional correctness after synthesis, cell mapping, and optimization. Signal transitions and timing behavior were observed using GTKWave.
+- **Static Timing Analysis (STA)**: Learned setup and hold analysis, slack calculation, timing paths, flip-flop timing, clock skew, and jitter. Both graph-based and path-based approaches were explored, emphasizing critical path identification and timing verification.
+- **OpenSTA Workflow**: Installed and configured OpenSTA, performed timing analysis on example designs, and applied the methodology to VSDBabySoC, incorporating SPEF-based parasitics for accurate delay estimation.
+- **Timing Graphs**: Generated visual timing diagrams to illustrate critical paths and slack values. While the initial diagrams were oversized, a refined version will be embedded in the future. Analysis confirmed that the critical path meets setup timing, with additional PVT, hold, and post-route checks recommended for sign-off.
+
+This week highlighted that SoC design extends beyond logic correctness: functional verification, timing validation, and careful analysis of critical paths are essential to ensure a robust, synthesis-ready design. Week 3 thus bridges functional modeling with the practical realities of timing-aware post-synthesis verification.
 
 
 
+>[!IMPORTANT]
+> For easy navigation to all the weeks of the program, please visit the [Master Repository](https://github.com/BitopanBaishya/VSD-Tapeout-Program-2025.git).
 
 
